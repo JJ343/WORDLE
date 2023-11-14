@@ -1,5 +1,6 @@
 import pygame
 import button
+import random
 from setting import *
 from sprites import *
 
@@ -14,12 +15,27 @@ class Game:
         self.number=0
         self.MARGIN_X=0
         self.MARGIN_Y=0
+        self.create_word_list()
+        self.word=""
+    
+    def create_word_list(self):
+        with open("words_alpha.txt") as file:
+            self.words_list =file.read().splitlines()
+    def elegir_palabra(self):
+        self.r=random.choice(self.words_list).upper()
+        if len(self.r)!= self.number:
+            self.elegir_palabra()
+        self.word=self.r
+       
+
+
 
     def new(self):
-        self.word="AREPA"
         self.text =""
         self.current_row=0
         self.tiles=[]
+        self.flip=True
+        self.not_enough_letters =False
         
 
     def create_tiles(self):
@@ -66,41 +82,162 @@ class Game:
         
         self.screen.fill(Black)
         if self.menu==True:
-            self.draw_text("Menu",self.font, White, 275, 15)
+            self.draw_text("Menu",self.font, White, 300, 15)
             if button_4.draw(self.screen):
                 self.MARGIN_X=int((Ancho-(4*(TILESIZE+GAPSIZE)))/2)
                 self.MARGIN_Y=int((Alto-(6*(TILESIZE+GAPSIZE)))/2)
                 self.number=4
                 self.menu=False
                 self.create_tiles()
+                self.elegir_palabra()
+                
             if button_5.draw(self.screen):
                 self.MARGIN_X=int((Ancho-(5*(TILESIZE+GAPSIZE)))/2)
                 self.MARGIN_Y=int((Alto-(6*(TILESIZE+GAPSIZE)))/2)
                 self.number=5
                 self.menu=False
                 self.create_tiles()
+                self.elegir_palabra()
             if button_6.draw(self.screen):
                 self.MARGIN_X=int((Ancho-(6*(TILESIZE+GAPSIZE)))/2)
                 self.MARGIN_Y=int((Alto-(6*(TILESIZE+GAPSIZE)))/2)
                 self.number=6
                 self.menu=False
                 self.create_tiles()
+                self.elegir_palabra()
             if button_7.draw(self.screen):
                 self.MARGIN_X=int((Ancho-(7*(TILESIZE+GAPSIZE)))/2)
                 self.MARGIN_Y=int((Alto-(6*(TILESIZE+GAPSIZE)))/2)
                 self.number=7
                 self.menu=False
                 self.create_tiles()
+                self.elegir_palabra()
             if button_8.draw(self.screen):
                 self.MARGIN_X=int((Ancho-(8*(TILESIZE+GAPSIZE)))/2)
                 self.MARGIN_Y=int((Alto-(6*(TILESIZE+GAPSIZE)))/2)
                 self.number=8
                 self.menu=False
                 self.create_tiles()
+                self.elegir_palabra()
         else:
             self.draw_tiles()
+            print(self.word)
 
         pygame.display.update()
+
+    def row_animation(self):
+        # row shaking if not enough letters is inputted
+        self.not_enough_letters = True
+        start_pos = self.tiles[0][0].x
+        amount_move = 4
+        move = 3
+        screen_copy = self.screen.copy()
+        screen_copy.fill(Black)
+        for row in self.tiles:
+            for tile in row:
+                if row != self.tiles[self.current_row]:
+                    tile.draw(screen_copy)
+
+        while True:
+            while self.tiles[self.current_row][0].x < start_pos + amount_move:
+                self.screen.blit(screen_copy, (0, 0))
+                for tile in self.tiles[self.current_row]:
+                    tile.x += move
+                    tile.draw(self.screen)
+                self.clock.tick(FPS)
+                pygame.display.flip()
+
+            while self.tiles[self.current_row][0].x > start_pos - amount_move:
+                self.screen.blit(screen_copy, (0, 0))
+                for tile in self.tiles[self.current_row]:
+                    tile.x -= move
+                    tile.draw(self.screen)
+                self.clock.tick(FPS)
+                pygame.display.flip()
+
+            amount_move -= 2
+            if amount_move < 0:
+                break
+
+
+
+    def box_animation(self):
+        # tile scale animation for every letter inserted
+        for tile in self.tiles[self.current_row]:
+            if tile.letter == "":
+                screen_copy = self.screen.copy()
+                for start, end, step in ((0, 6, 1), (0, -6, -1)):
+                    for size in range(start, end, 2*step):
+                        self.screen.blit(screen_copy, (0, 0))
+                        tile.x -= size
+                        tile.y -= size
+                        tile.width += size * 2
+                        tile.height += size * 2
+                        surface = pygame.Surface((tile.width, tile.height))
+                        surface.fill(Black)
+                        self.screen.blit(surface, (tile.x, tile.y))
+                        tile.draw(self.screen)
+                        pygame.display.flip()
+                        self.clock.tick(FPS)
+                    self.add_letter()
+                break
+    
+    def reveal_animation(self, tile, colour):
+        # reveal colours animation when user input the whole word
+        screen_copy = self.screen.copy()
+
+        while True:
+            surface = pygame.Surface((tile.width+5, tile.height+5 ))
+            surface.fill(Black)
+            screen_copy.blit(surface, (tile.x, tile.y))
+            self.screen.blit(screen_copy, (0, 0))
+            if self.flip:
+                tile.y += 6
+                tile.height -= 10
+                tile.font_y += 4
+                tile.font_height = max(tile.font_height - 8, 0)
+            else:
+                tile.colour = colour
+                tile.y -= 6
+                tile.height += 10
+                tile.font_y -= 4
+                tile.font_height = min(tile.font_height + 8, tile.font_size)
+            if tile.font_height == 0:
+                self.flip = False
+
+            tile.draw(self.screen)
+            pygame.display.update()
+            self.clock.tick(FPS)
+
+            if tile.font_height == tile.font_size:
+                self.flip = True
+                break
+
+
+
+
+
+
+    
+
+
+    def check_letters(self):
+        #verifica las letras introducidas
+        copy_word= [x for x in self.word]
+        for i , user_letter in enumerate(self.text):
+            colour = Grey
+            for j , letter in enumerate(copy_word):
+                if user_letter ==letter:
+                    colour =Yellow
+                    if i== j:
+                        colour =Green 
+                    copy_word[j]="" 
+                    break
+            #Animacion de las letras
+            self.reveal_animation(self.tiles[self.current_row][i],colour)
+
+
+
     
 
     def events(self):
@@ -111,6 +248,8 @@ class Game:
             if event.type ==pygame.KEYDOWN:
                 if event.key ==pygame.K_RETURN:
                     if len(self.text)== self.number:
+                        #Confirmamos letras
+                        self.check_letters()
                         if self.text ==self.word or self.current_row +1 ==6:
                             #lose
                             if self.text!= self.word:
@@ -118,23 +257,25 @@ class Game:
                             #win
                             else:
                                 pass
-                            self.playing=False
+                            self.ejec=False
                             break
                         self.current_row+=1
                         self.text=""
                     else:
                         #animaciones, en caso de falta de letras
-                        pass
+                        self.row_animation()
 
                 elif event.key == pygame.K_BACKSPACE:
                     self.text =self.text[:-1]
                 else:
                     if len(self.text)< self.number and event.unicode.isalpha():
                         self.text += event.unicode.upper()
+                        self.box_animation()
 game = Game()
 
 while True:
     game.new()
     game.run()
+
 
 
